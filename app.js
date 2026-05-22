@@ -8,7 +8,6 @@ const firebaseConfig = {
 };
 const FIREBASE_CONFIGURED = FIREBASE_CONFIG.apiKey !== "AIzaSyDZbG-IGZGu0OP2x1g4TJMeJ6bBhJJZMoM";
 
-// ── Firebase imports (loaded dynamically so app works without config) ─────────
 let firebaseApp, firebaseAuth, firebaseDb;
 let currentUser = null;
 
