@@ -1,6 +1,6 @@
 // ── Firebase Config ───────────────────────────────────────────────────────────
-// 🔧 REPLACE THIS with your own Firebase project config from:
-//    https://console.firebase.google.com → Project Settings → Your apps → Web
+// 🔧 REPLACE the values below with your Firebase project config:
+//    Firebase Console → Project Settings → Your apps → Web app → SDK config
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
   apiKey: "AIzaSyDHsIDQV1hwlfys_Zco6BXzNY7Xy6omHzs",
@@ -13,51 +13,40 @@ const firebaseConfig = {
 };
 const FIREBASE_CONFIGURED = FIREBASE_CONFIG.apiKey !== "AIzaSyDHsIDQV1hwlfys_Zco6BXzNY7Xy6omHzs";
 
-// ── Firebase imports (loaded dynamically so app works without config) ─────────
-let firebaseApp, firebaseAuth, firebaseDb;
+let firebaseAuth, firebaseDb;
 let currentUser = null;
 
-async function initFirebase() {
-  if (!FIREBASE_CONFIGURED) return false;
+function initFirebase() {
+  if (!FIREBASE_CONFIGURED) return Promise.resolve(null);
   try {
-    const { initializeApp }              = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
-    const { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged }
-                                          = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js');
-    const { getFirestore, doc, setDoc, getDoc }
-                                          = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
-
-    firebaseApp  = initializeApp(FIREBASE_CONFIG);
-    firebaseAuth = getAuth(firebaseApp);
-    firebaseDb   = getFirestore(firebaseApp);
-
-    window._firebase = { GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, doc, setDoc, getDoc };
+    firebase.initializeApp(FIREBASE_CONFIG);
+    firebaseAuth = firebase.auth();
+    firebaseDb   = firebase.firestore();
 
     return new Promise(resolve => {
-      onAuthStateChanged(firebaseAuth, user => {
+      firebaseAuth.onAuthStateChanged(user => {
         currentUser = user;
         resolve(user);
       });
     });
-  } catch (e) {
+  } catch(e) {
     console.warn('Firebase init failed:', e);
-    return false;
+    return Promise.resolve(null);
   }
 }
 
-async function saveToCloud() {
-  if (!currentUser || !FIREBASE_CONFIGURED || !window._firebase) return;
-  try {
-    const { doc, setDoc } = window._firebase;
-    await setDoc(doc(firebaseDb, 'users', currentUser.uid), { state: JSON.stringify(state) });
-  } catch(e) { console.warn('Cloud save failed:', e); }
+function saveToCloud() {
+  if (!currentUser || !firebaseDb) return;
+  firebaseDb.collection('users').doc(currentUser.uid)
+    .set({ state: JSON.stringify(state) })
+    .catch(e => console.warn('Cloud save failed:', e));
 }
 
 async function loadFromCloud() {
-  if (!currentUser || !FIREBASE_CONFIGURED || !window._firebase) return null;
+  if (!currentUser || !firebaseDb) return null;
   try {
-    const { doc, getDoc } = window._firebase;
-    const snap = await getDoc(doc(firebaseDb, 'users', currentUser.uid));
-    if (snap.exists()) return JSON.parse(snap.data().state);
+    const snap = await firebaseDb.collection('users').doc(currentUser.uid).get();
+    if (snap.exists) return JSON.parse(snap.data().state);
   } catch(e) { console.warn('Cloud load failed:', e); }
   return null;
 }
@@ -217,14 +206,13 @@ function updateAuthUI() {
 }
 
 el('auth-google-btn').addEventListener('click', async () => {
-  if (!FIREBASE_CONFIGURED || !window._firebase) return;
+  if (!FIREBASE_CONFIGURED || !firebaseAuth) return;
   try {
     el('auth-google-btn').textContent = 'Signing in…';
     el('auth-google-btn').disabled = true;
-    const { GoogleAuthProvider, signInWithPopup } = window._firebase;
-    const result = await signInWithPopup(firebaseAuth, new GoogleAuthProvider());
-    currentUser = result.user;
-    // try to load cloud data
+    const provider = new firebase.auth.GoogleAuthProvider();
+    const result   = await firebaseAuth.signInWithPopup(provider);
+    currentUser    = result.user;
     const cloudState = await loadFromCloud();
     if (cloudState) {
       state = cloudState;
@@ -237,7 +225,7 @@ el('auth-google-btn').addEventListener('click', async () => {
     updateAuthUI();
     afterAuth();
   } catch(e) {
-    el('auth-google-btn').textContent = '❌ Sign-in failed. Try again.';
+    el('auth-google-btn').innerHTML = `<svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z"/><path fill="#FBBC05" d="M3.964 10.707c-.18-.54-.282-1.117-.282-1.707s.102-1.167.282-1.707V4.961H.957C.347 6.175 0 7.548 0 9s.348 2.825.957 4.039l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.961L3.964 7.293C4.672 5.166 6.656 3.58 9 3.58z"/></svg> Sign in with Google`;
     el('auth-google-btn').disabled = false;
     console.error(e);
   }
@@ -247,11 +235,8 @@ el('auth-continue-btn').addEventListener('click', () => { hideAuthScreen(); laun
 el('auth-skip-btn').addEventListener('click', () => { hideAuthScreen(); launchApp(); });
 
 el('auth-signout-btn').addEventListener('click', async () => {
-  if (window._firebase) {
-    const { signOut } = window._firebase;
-    await signOut(firebaseAuth);
-    currentUser = null;
-  }
+  if (firebaseAuth) await firebaseAuth.signOut();
+  currentUser = null;
   updateAuthUI();
 });
 
@@ -1001,20 +986,26 @@ el('allowance-input').addEventListener('keydown', e => { if (e.key === 'Enter') 
 // ── Boot ──────────────────────────────────────────────────────────────────────
 initState();
 
-(async () => {
-  const user = await initFirebase();
+initFirebase().then(user => {
   if (user) {
     currentUser = user;
-    const cloudState = await loadFromCloud();
-    if (cloudState) {
-      state = cloudState;
-      if (!state.custom_groceries) state.custom_groceries = [];
-      if (!state.custom_tasks)     state.custom_tasks     = [];
-      if (!state.week_history)     state.week_history     = [];
-      if (state.week_started === undefined) state.week_started = null;
-      saveState();
-    }
+    loadFromCloud().then(cloudState => {
+      if (cloudState) {
+        state = cloudState;
+        if (!state.custom_groceries) state.custom_groceries = [];
+        if (!state.custom_tasks)     state.custom_tasks     = [];
+        if (!state.week_history)     state.week_history     = [];
+        if (state.week_started === undefined) state.week_started = null;
+        saveState();
+      }
+      updateAuthUI();
+      showAuthScreen();
+    });
+  } else {
+    updateAuthUI();
+    showAuthScreen();
   }
+}).catch(() => {
   updateAuthUI();
   showAuthScreen();
-})();
+});
