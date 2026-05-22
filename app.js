@@ -1,8 +1,7 @@
 // ── Firebase Config ───────────────────────────────────────────────────────────
 // 🔧 REPLACE THIS with your own Firebase project config from:
 //    https://console.firebase.google.com → Project Settings → Your apps → Web
-const FIREBASE_CONFIG = {
-  // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
   apiKey: "AIzaSyDHsIDQV1hwlfys_Zco6BXzNY7Xy6omHzs",
   authDomain: "appjs-383bf.firebaseapp.com",
@@ -12,6 +11,7 @@ const firebaseConfig = {
   appId: "1:451999085560:web:ff16e59ba3daa936c71c0d",
   measurementId: "G-PDNQ5PGPE5"
 };
+const FIREBASE_CONFIGURED = FIREBASE_CONFIG.apiKey !== "AIzaSyDHsIDQV1hwlfys_Zco6BXzNY7Xy6omHzs";
 
 // ── Firebase imports (loaded dynamically so app works without config) ─────────
 let firebaseApp, firebaseAuth, firebaseDb;
