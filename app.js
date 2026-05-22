@@ -1,6 +1,3 @@
-// ── Firebase Config ───────────────────────────────────────────────────────────
-// 🔧 REPLACE THIS with your own Firebase project config from:
-//    https://console.firebase.google.com → Project Settings → Your apps → Web
 const firebaseConfig = {
   apiKey: "AIzaSyDZbG-IGZGu0OP2x1g4TJMeJ6bBhJJZMoM",
   authDomain: "reytas-604a7.firebaseapp.com",
