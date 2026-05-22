@@ -1,15 +1,13 @@
 // ── Firebase Config ───────────────────────────────────────────────────────────
 // 🔧 REPLACE the values below with your Firebase project config:
 //    Firebase Console → Project Settings → Your apps → Web app → SDK config
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional.
-const firebaseConfig = {
-  apiKey: "AIzaSyDHsIDQV1hwlfys_Zco6BXzNY7Xy6omHzs",
-  authDomain: "appjs-383bf.firebaseapp.com",
-  projectId: "appjs-383bf",
-  storageBucket: "appjs-383bf.firebasestorage.app",
+const FIREBASE_CONFIG = {
+  apiKey:            "AIzaSyDHsIDQV1hwlfys_Zco6BXzNY7Xy6omHzs",
+  authDomain:        "appjs-383bf.firebaseapp.com",
+  projectId:         "appjs-383bf",
+  storageBucket:     "appjs-383bf.firebasestorage.app",
   messagingSenderId: "451999085560",
-  appId: "1:451999085560:web:ff16e59ba3daa936c71c0d",
-  measurementId: "G-PDNQ5PGPE5"
+  appId:             "1:451999085560:web:ff16e59ba3daa936c71c0d"
 };
 const FIREBASE_CONFIGURED = FIREBASE_CONFIG.apiKey !== "AIzaSyDHsIDQV1hwlfys_Zco6BXzNY7Xy6omHzs";
 
@@ -18,8 +16,13 @@ let currentUser = null;
 
 function initFirebase() {
   if (!FIREBASE_CONFIGURED) return Promise.resolve(null);
+  if (typeof firebase === 'undefined') {
+    console.warn('Firebase SDK not loaded');
+    return Promise.resolve(null);
+  }
   try {
-    firebase.initializeApp(FIREBASE_CONFIG);
+    // avoid re-initializing if already done
+    if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
     firebaseAuth = firebase.auth();
     firebaseDb   = firebase.firestore();
 
@@ -984,12 +987,12 @@ el('allowance-cancel-btn').addEventListener('click', () => {
 el('allowance-input').addEventListener('keydown', e => { if (e.key === 'Enter') saveAllowance(); });
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
-initState();
+try { initState(); } catch(e) { console.error('initState failed:', e); state = freshState(); }
 
 initFirebase().then(user => {
   if (user) {
     currentUser = user;
-    loadFromCloud().then(cloudState => {
+    return loadFromCloud().then(cloudState => {
       if (cloudState) {
         state = cloudState;
         if (!state.custom_groceries) state.custom_groceries = [];
@@ -998,14 +1001,11 @@ initFirebase().then(user => {
         if (state.week_started === undefined) state.week_started = null;
         saveState();
       }
-      updateAuthUI();
-      showAuthScreen();
     });
-  } else {
-    updateAuthUI();
-    showAuthScreen();
   }
-}).catch(() => {
+}).catch(e => {
+  console.warn('Boot error (non-fatal):', e);
+}).finally(() => {
   updateAuthUI();
   showAuthScreen();
 });
