@@ -1,13 +1,13 @@
 // ── Firebase Config ───────────────────────────────────────────────────────────
 // 🔧 REPLACE THIS with your own Firebase project config from:
 //    https://console.firebase.google.com → Project Settings → Your apps → Web
-const FIREBASE_CONFIG = {
-  apiKey:            "AIzaSyAiLG_N3JphXcDrApexeFsFoBesz3_lr6o",
-  authDomain:        "saving-website.firebaseapp.com",
-  projectId:         "saving-website",
-  storageBucket:     "saving-website.firebasestorage.app",
+const firebaseConfig = {
+  apiKey: "AIzaSyAiLG_N3JphXcDrApexeFsFoBesz3_lr6o",
+  authDomain: "saving-website.firebaseapp.com",
+  projectId: "saving-website",
+  storageBucket: "saving-website.firebasestorage.app",
   messagingSenderId: "846048988859",
-  appId:             "1:846048988859:web:800b47cab7a79d1195e39e"
+  appId: "1:846048988859:web:800b47cab7a79d1195e39e"
 };
 const FIREBASE_CONFIGURED = FIREBASE_CONFIG.apiKey !== "AIzaSyAiLG_N3JphXcDrApexeFsFoBesz3_lr6o";
 
