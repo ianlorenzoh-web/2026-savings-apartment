@@ -1,3 +1,65 @@
+// ── Firebase Config ───────────────────────────────────────────────────────────
+// 🔧 REPLACE THIS with your own Firebase project config from:
+//    https://console.firebase.google.com → Project Settings → Your apps → Web
+const FIREBASE_CONFIG = {
+  apiKey:            "YOUR_API_KEY",
+  authDomain:        "YOUR_PROJECT_ID.firebaseapp.com",
+  projectId:         "YOUR_PROJECT_ID",
+  storageBucket:     "YOUR_PROJECT_ID.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId:             "YOUR_APP_ID"
+};
+const FIREBASE_CONFIGURED = FIREBASE_CONFIG.apiKey !== "YOUR_API_KEY";
+
+// ── Firebase imports (loaded dynamically so app works without config) ─────────
+let firebaseApp, firebaseAuth, firebaseDb;
+let currentUser = null;
+
+async function initFirebase() {
+  if (!FIREBASE_CONFIGURED) return false;
+  try {
+    const { initializeApp }              = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
+    const { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged }
+                                          = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js');
+    const { getFirestore, doc, setDoc, getDoc }
+                                          = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+
+    firebaseApp  = initializeApp(FIREBASE_CONFIG);
+    firebaseAuth = getAuth(firebaseApp);
+    firebaseDb   = getFirestore(firebaseApp);
+
+    window._firebase = { GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, doc, setDoc, getDoc };
+
+    return new Promise(resolve => {
+      onAuthStateChanged(firebaseAuth, user => {
+        currentUser = user;
+        resolve(user);
+      });
+    });
+  } catch (e) {
+    console.warn('Firebase init failed:', e);
+    return false;
+  }
+}
+
+async function saveToCloud() {
+  if (!currentUser || !FIREBASE_CONFIGURED || !window._firebase) return;
+  try {
+    const { doc, setDoc } = window._firebase;
+    await setDoc(doc(firebaseDb, 'users', currentUser.uid), { state: JSON.stringify(state) });
+  } catch(e) { console.warn('Cloud save failed:', e); }
+}
+
+async function loadFromCloud() {
+  if (!currentUser || !FIREBASE_CONFIGURED || !window._firebase) return null;
+  try {
+    const { doc, getDoc } = window._firebase;
+    const snap = await getDoc(doc(firebaseDb, 'users', currentUser.uid));
+    if (snap.exists()) return JSON.parse(snap.data().state);
+  } catch(e) { console.warn('Cloud load failed:', e); }
+  return null;
+}
+
 // ── Constants ────────────────────────────────────────────────────────────────
 let WEEKLY_ALLOWANCE = 2500;
 const STORAGE_KEY = 'sololife_v3';
