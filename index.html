@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Solo Life — Student Finance</title>
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#f0f4ff" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<!-- ONBOARDING -->
+<div id="onboarding" class="onboarding hidden">
+  <div class="ob-bg"></div>
+  <div class="ob-content">
+    <div class="ob-logo">🏠</div>
+    <h1 class="ob-title">Solo Life</h1>
+    <p class="ob-sub">Your Personal Finance HQ</p>
+    <div class="ob-card" id="ob-card">
+      <div class="ob-step-emoji" id="ob-emoji">🎯</div>
+      <h2 class="ob-step-title" id="ob-step-title">Hey there, solo student</h2>
+      <p class="ob-step-desc" id="ob-step-desc">This app is built just for you — living alone in Naga, managing your ₱2,500 weekly allowance like a pro.</p>
+      <div class="ob-dots" id="ob-dots">
+        <span class="dot active"></span><span class="dot"></span><span class="dot"></span>
+      </div>
+      <button class="btn-primary" id="ob-next">Continue →</button>
+    </div>
+  </div>
+</div>
+
+<!-- APP SHELL -->
+<div id="app" class="app hidden">
+
+  <!-- DASHBOARD TAB -->
+  <section id="tab-dashboard" class="tab-content active">
+    <div class="tab-header">
+      <p class="tab-date" id="dash-date">Week of May 22</p>
+      <h2 class="tab-title">Dashboard</h2>
+      <p class="tab-sub">Allowance: <strong class="accent">₱2,500</strong></p>
+    </div>
+
+    <div class="grid-2 mb-16">
+      <div class="stat-card">
+        <p class="stat-label">Remaining</p>
+        <p class="stat-val green" id="d-remaining">₱2,500</p>
+      </div>
+      <div class="stat-card">
+        <p class="stat-label">Spent</p>
+        <p class="stat-val amber" id="d-spent">₱0</p>
+      </div>
+      <div class="stat-card">
+        <p class="stat-label">Safe to Spend</p>
+        <p class="stat-val blue" id="d-safe">₱2,100</p>
+      </div>
+      <div class="stat-card">
+        <p class="stat-label">Health Score</p>
+        <p class="stat-val" id="d-score">100 <span class="score-label">Excellent</span></p>
+      </div>
+    </div>
+
+    <div class="card mb-16">
+      <div class="row-between mb-8">
+        <span class="label-sm">Weekly Budget Used</span>
+        <span class="label-sm bold" id="d-pct">0%</span>
+      </div>
+      <div class="progress-track"><div class="progress-bar purple" id="d-main-bar" style="width:0%"></div></div>
+      <p class="budget-warn hidden" id="d-overflow">⚠️ Budget allocations exceed ₱2,500</p>
+    </div>
+
+    <div class="card mb-16">
+      <p class="section-label">Category Breakdown</p>
+      <div id="d-categories"></div>
+    </div>
+
+    <div class="card savings-hero mb-16">
+      <div class="row-between">
+        <div>
+          <p class="savings-hero-label">💰 Total Savings</p>
+          <p class="savings-hero-val" id="d-savings-total">₱0</p>
+          <p class="savings-hero-proj" id="d-savings-proj">≈ ₱0/mo · ₱0/yr</p>
+        </div>
+        <div class="streak-box">
+          <div class="streak-fire">🔥</div>
+          <p class="streak-num" id="d-streak">0</p>
+          <p class="streak-label">streak</p>
+        </div>
+      </div>
+    </div>
+
+    <p class="section-label">Smart Insights</p>
+    <div id="d-insights"></div>
+  </section>
+
+  <!-- EXPENSES TAB -->
+  <section id="tab-expenses" class="tab-content">
+    <div class="tab-header">
+      <h2 class="tab-title">Expense Tracker</h2>
+      <p class="tab-sub">Log every peso you spend</p>
+    </div>
+
+    <div class="grid-2 mb-16">
+      <div class="stat-card">
+        <p class="stat-label">Today</p>
+        <p class="stat-val amber" id="e-today">₱0</p>
+      </div>
+      <div class="stat-card">
+        <p class="stat-label">This Week</p>
+        <p class="stat-val red" id="e-week">₱0</p>
+      </div>
+    </div>
+
+    <div class="card mb-20">
+      <p class="section-label">Add Expense</p>
+      <input type="number" id="e-amount" class="input-lg" placeholder="Amount (₱)" />
+      <select id="e-cat" class="input-md mt-8">
+        <option value="food">🛒 Food &amp; Groceries</option>
+        <option value="transport">🚌 Transportation</option>
+        <option value="laundry">👕 Laundry</option>
+        <option value="cleaning">🧹 Cleaning / HH</option>
+        <option value="medicine">💊 Medicine</option>
+        <option value="savings">🏦 Savings</option>
+        <option value="fun">🎯 Buffer / Fun</option>
+      </select>
+      <input type="text" id="e-note" class="input-md mt-8" placeholder="Note (optional)" />
+      <button class="btn-primary mt-12" id="e-add-btn">Add Expense</button>
+    </div>
+
+    <p class="section-label">This Week's Expenses</p>
+    <div id="e-list">
+      <div class="empty-state">
+        <div class="empty-icon">📝</div>
+        <p>No expenses yet. Log your first one above!</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- SAVINGS TAB -->
+  <section id="tab-savings" class="tab-content">
+    <div class="tab-header">
+      <h2 class="tab-title">Savings Tracker</h2>
+      <p class="tab-sub">Build your financial cushion</p>
+    </div>
+
+    <div class="card savings-hero mb-16">
+      <p class="savings-hero-label text-center">Total Saved</p>
+      <p class="savings-hero-big" id="s-total">₱0</p>
+      <div class="savings-proj-row">
+        <div class="proj-item">
+          <p class="proj-lbl">Monthly</p>
+          <p class="proj-val green" id="s-monthly">₱0</p>
+        </div>
+        <div class="proj-item">
+          <p class="proj-lbl">Yearly</p>
+          <p class="proj-val green" id="s-yearly">₱0</p>
+        </div>
+        <div class="proj-item">
+          <p class="proj-lbl">Streak</p>
+          <p class="proj-val amber" id="s-streak">🔥 0w</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card mb-16">
+      <div class="row-between mb-8">
+        <span class="label-sm" id="s-milestone-label">Next Milestone: ₱500</span>
+        <span class="label-sm bold blue" id="s-milestone-pct">0%</span>
+      </div>
+      <div class="progress-track"><div class="progress-bar blue" id="s-milestone-bar" style="width:0%"></div></div>
+      <div class="milestone-pills" id="s-milestones"></div>
+    </div>
+
+    <div class="card mb-16">
+      <p class="section-label">Log Weekly Savings</p>
+      <div class="input-row">
+        <input type="number" id="s-amount" class="input-md flex-1" placeholder="₱ Amount" />
+        <button class="btn-blue" id="s-add-btn">Save +</button>
+      </div>
+      <div class="quick-btns mt-10" id="s-quick-btns">
+        <button class="btn-quick" data-amt="100">₱100</button>
+        <button class="btn-quick" data-amt="200">₱200</button>
+        <button class="btn-quick" data-amt="300">₱300</button>
+        <button class="btn-quick" data-amt="400">₱400</button>
+        <button class="btn-quick" data-amt="500">₱500</button>
+      </div>
+    </div>
+
+    <p class="section-label">Savings Log</p>
+    <div id="s-log">
+      <div class="empty-state">
+        <div class="empty-icon">💰</div>
+        <p>Start saving to see your history here!</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- GROCERY TAB -->
+  <section id="tab-grocery" class="tab-content">
+    <div class="tab-header">
+      <h2 class="tab-title">Grocery Planner</h2>
+      <p class="tab-sub">Budget-smart nutrition tracking</p>
+    </div>
+
+    <div class="grid-2 mb-16">
+      <div class="stat-card">
+        <p class="stat-label">Basket Cost</p>
+        <p class="stat-val green" id="g-cost">₱0</p>
+        <p class="stat-sub" id="g-cost-sub">of ₱1,200 budget</p>
+      </div>
+      <div class="stat-card">
+        <p class="stat-label">Protein</p>
+        <p class="stat-val amber" id="g-protein">0g</p>
+        <p class="stat-sub">weekly estimate</p>
+      </div>
+    </div>
+
+    <div class="card mb-16 hidden" id="g-budget-card">
+      <div class="row-between mb-8">
+        <span class="label-sm">Budget Usage</span>
+        <span class="label-sm bold green" id="g-budget-pct">0%</span>
+      </div>
+      <div class="progress-track"><div class="progress-bar green" id="g-budget-bar" style="width:0%"></div></div>
+    </div>
+
+    <div id="g-list"></div>
+  </section>
+
+  <!-- APARTMENT TAB -->
+  <section id="tab-apartment" class="tab-content">
+    <div class="tab-header">
+      <h2 class="tab-title">Apartment Life</h2>
+      <p class="tab-sub">Keep your space clean &amp; life running</p>
+    </div>
+
+    <div class="card mb-20">
+      <p class="section-label">💊 Medicine Cabinet</p>
+      <div id="med-list"></div>
+    </div>
+
+    <p class="section-label">📋 Today's Checklist</p>
+    <div id="task-list"></div>
+  </section>
+
+  <!-- BUDGET TAB -->
+  <section id="tab-budget" class="tab-content">
+    <div class="tab-header">
+      <h2 class="tab-title">Budget Settings</h2>
+      <p class="tab-sub">Customize your weekly allocations</p>
+    </div>
+
+    <div class="card mb-16">
+      <div class="row-between">
+        <span class="label-sm">Total Allocated</span>
+        <span class="label-sm bold" id="b-total-disp">₱0 / ₱2,500</span>
+      </div>
+      <p class="budget-warn hidden" id="b-overflow">⚠️ Over budget! Reduce some categories.</p>
+      <p class="budget-ok" id="b-ok">✓ Unallocated: <span id="b-remaining-alloc">₱0</span></p>
+    </div>
+
+    <div id="b-sliders"></div>
+
+    <button class="btn-primary mt-8" id="b-save-btn">Save Budget</button>
+    <button class="btn-danger mt-8" id="b-reset-btn">Reset All Data</button>
+  </section>
+
+  <!-- BOTTOM NAV -->
+  <nav class="bottom-nav">
+    <button class="nav-btn active" data-tab="dashboard"><span class="nav-icon">🏠</span><span class="nav-lbl">Home</span></button>
+    <button class="nav-btn" data-tab="expenses"><span class="nav-icon">💸</span><span class="nav-lbl">Expenses</span></button>
+    <button class="nav-btn" data-tab="savings"><span class="nav-icon">💰</span><span class="nav-lbl">Savings</span></button>
+    <button class="nav-btn" data-tab="grocery"><span class="nav-icon">🛒</span><span class="nav-lbl">Grocery</span></button>
+    <button class="nav-btn" data-tab="apartment"><span class="nav-icon">🏡</span><span class="nav-lbl">Apt</span></button>
+    <button class="nav-btn" data-tab="budget"><span class="nav-icon">⚙️</span><span class="nav-lbl">Budget</span></button>
+  </nav>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
