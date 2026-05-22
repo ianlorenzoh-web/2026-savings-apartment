@@ -2,14 +2,14 @@
 // 🔧 REPLACE THIS with your own Firebase project config from:
 //    https://console.firebase.google.com → Project Settings → Your apps → Web
 const firebaseConfig = {
-  apiKey: "AIzaSyCH5yYs-YafqL99QQAg-4XU4R4458MGjBo",
-  authDomain: "my-financial-ruin.firebaseapp.com",
-  projectId: "my-financial-ruin",
-  storageBucket: "my-financial-ruin.firebasestorage.app",
-  messagingSenderId: "980354698629",
-  appId: "1:980354698629:web:be7b52dfd649f17afb08ec"
+apiKey: "AIzaSyCH5yYs-YafqL99QQAg-4XU4R4458MGjBo",
+authDomain: "my-financial-ruin.firebaseapp.com",
+projectId: "my-financial-ruin",
+storageBucket: "my-financial-ruin.firebasestorage.app",
+messagingSenderId: "980354698629",
+appId: "1:980354698629:web:be7b52dfd649f17afb08ec"
 };
-const FIREBASE_CONFIGURED = FIREBASE_CONFIG.apiKey !== "AIzaSyCH5yYs-YafqL99QQAg-4XU4R4458MGjBo";
+const FIREBASE_CONFIGURED = FIREBASE_CONFIG.apiKey!== "AIzaSyCH5yYs-YafqL99QQAg-4XU4R4458MGjBo";
 
 // ── Firebase imports (loaded dynamically so app works without config) ─────────
 let firebaseApp, firebaseAuth, firebaseDb;
