@@ -1,3 +1,65 @@
+// ── Firebase Config ───────────────────────────────────────────────────────────
+// 🔧 REPLACE THIS with your own Firebase project config from:
+//    https://console.firebase.google.com → Project Settings → Your apps → Web
+const FIREBASE_CONFIG = {
+  apiKey:            "AIzaSyAiLG_N3JphXcDrApexeFsFoBesz3_lr6o",
+  authDomain:        "saving-website.firebaseapp.com",
+  projectId:         "saving-website",
+  storageBucket:     "saving-website.firebasestorage.app",
+  messagingSenderId: "846048988859",
+  appId:             "1:846048988859:web:800b47cab7a79d1195e39e"
+};
+const FIREBASE_CONFIGURED = FIREBASE_CONFIG.apiKey !== "AIzaSyAiLG_N3JphXcDrApexeFsFoBesz3_lr6o";
+
+// ── Firebase imports (loaded dynamically so app works without config) ─────────
+let firebaseApp, firebaseAuth, firebaseDb;
+let currentUser = null;
+
+async function initFirebase() {
+  if (!FIREBASE_CONFIGURED) return false;
+  try {
+    const { initializeApp }              = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
+    const { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged }
+                                          = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js');
+    const { getFirestore, doc, setDoc, getDoc }
+                                          = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+
+    firebaseApp  = initializeApp(FIREBASE_CONFIG);
+    firebaseAuth = getAuth(firebaseApp);
+    firebaseDb   = getFirestore(firebaseApp);
+
+    window._firebase = { GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, doc, setDoc, getDoc };
+
+    return new Promise(resolve => {
+      onAuthStateChanged(firebaseAuth, user => {
+        currentUser = user;
+        resolve(user);
+      });
+    });
+  } catch (e) {
+    console.warn('Firebase init failed:', e);
+    return false;
+  }
+}
+
+async function saveToCloud() {
+  if (!currentUser || !FIREBASE_CONFIGURED || !window._firebase) return;
+  try {
+    const { doc, setDoc } = window._firebase;
+    await setDoc(doc(firebaseDb, 'users', currentUser.uid), { state: JSON.stringify(state) });
+  } catch(e) { console.warn('Cloud save failed:', e); }
+}
+
+async function loadFromCloud() {
+  if (!currentUser || !FIREBASE_CONFIGURED || !window._firebase) return null;
+  try {
+    const { doc, getDoc } = window._firebase;
+    const snap = await getDoc(doc(firebaseDb, 'users', currentUser.uid));
+    if (snap.exists()) return JSON.parse(snap.data().state);
+  } catch(e) { console.warn('Cloud load failed:', e); }
+  return null;
+}
+
 // ── Constants ────────────────────────────────────────────────────────────────
 let WEEKLY_ALLOWANCE = 2500;
 const STORAGE_KEY = 'sololife_v3';
@@ -59,12 +121,18 @@ const OB_STEPS = [
 const fmt   = n => '₱' + Math.round(n).toLocaleString('en-PH');
 const pct   = (a, b) => b === 0 ? 0 : Math.min(100, Math.round((a / b) * 100));
 const el    = id => document.getElementById(id);
-const qs    = sel => document.querySelector(sel);
 const today = () => new Date().toDateString();
 const weekKey = () => {
   const d = new Date(), jan1 = new Date(d.getFullYear(), 0, 1);
   const wk = Math.ceil(((d - jan1) / 86400000 + jan1.getDay() + 1) / 7);
   return `${d.getFullYear()}-W${wk}`;
+};
+const fmtWeekLabel = (iso) => {
+  if (!iso) return '';
+  try {
+    const d = new Date(iso);
+    return d.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
+  } catch { return iso; }
 };
 
 // ── State ────────────────────────────────────────────────────────────────────
@@ -77,12 +145,11 @@ function loadState() {
 
 function saveState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  saveToCloud(); // fire-and-forget cloud sync
 }
 
-function initState() {
-  const saved = loadState();
-  if (saved) { state = saved; return; }
-  state = {
+function freshState() {
+  return {
     budget: { ...DEFAULT_BUDGET },
     expenses: [],
     savings_total: 0,
@@ -96,7 +163,121 @@ function initState() {
     onboarded: false,
     week: weekKey(),
     weekly_allowance: 2500,
+    week_started: null,   // ISO date when current week was started
+    week_history: [],     // array of week snapshot objects
   };
+}
+
+function initState() {
+  const saved = loadState();
+  if (saved) {
+    state = saved;
+    // migrate missing fields
+    if (!state.custom_groceries) state.custom_groceries = [];
+    if (!state.custom_tasks)     state.custom_tasks     = [];
+    if (!state.week_history)     state.week_history     = [];
+    if (state.week_started === undefined) state.week_started = null;
+    return;
+  }
+  state = freshState();
+}
+
+// ── Auth Screen ───────────────────────────────────────────────────────────────
+function showAuthScreen() {
+  el('auth-screen').classList.remove('hidden');
+  if (!FIREBASE_CONFIGURED) {
+    el('auth-config-note').textContent = '⚠️ Firebase not configured — sign-in disabled. See app.js to set up.';
+    el('auth-google-btn').disabled = true;
+    el('auth-google-btn').style.opacity = '0.5';
+  }
+}
+
+function hideAuthScreen() {
+  el('auth-screen').classList.add('hidden');
+}
+
+function updateAuthUI() {
+  if (currentUser) {
+    el('auth-signin-info').classList.add('hidden');
+    el('auth-user-info').classList.remove('hidden');
+    el('auth-avatar').src   = currentUser.photoURL || '';
+    el('auth-name').textContent  = currentUser.displayName || 'User';
+    el('auth-email').textContent = currentUser.email || '';
+    // Update dashboard pill
+    el('dash-avatar').src = currentUser.photoURL || '';
+    el('dash-username').textContent = (currentUser.displayName || 'User').split(' ')[0];
+    el('dash-user-pill').style.display = 'flex';
+  } else {
+    el('auth-signin-info').classList.remove('hidden');
+    el('auth-user-info').classList.add('hidden');
+    el('dash-user-pill').style.display = 'none';
+  }
+}
+
+el('auth-google-btn').addEventListener('click', async () => {
+  if (!FIREBASE_CONFIGURED || !window._firebase) return;
+  try {
+    el('auth-google-btn').textContent = 'Signing in…';
+    el('auth-google-btn').disabled = true;
+    const { GoogleAuthProvider, signInWithPopup } = window._firebase;
+    const result = await signInWithPopup(firebaseAuth, new GoogleAuthProvider());
+    currentUser = result.user;
+    // try to load cloud data
+    const cloudState = await loadFromCloud();
+    if (cloudState) {
+      state = cloudState;
+      if (!state.custom_groceries) state.custom_groceries = [];
+      if (!state.custom_tasks)     state.custom_tasks     = [];
+      if (!state.week_history)     state.week_history     = [];
+      if (state.week_started === undefined) state.week_started = null;
+      saveState();
+    }
+    updateAuthUI();
+    afterAuth();
+  } catch(e) {
+    el('auth-google-btn').textContent = '❌ Sign-in failed. Try again.';
+    el('auth-google-btn').disabled = false;
+    console.error(e);
+  }
+});
+
+el('auth-continue-btn').addEventListener('click', () => { hideAuthScreen(); launchApp(); });
+el('auth-skip-btn').addEventListener('click', () => { hideAuthScreen(); launchApp(); });
+
+el('auth-signout-btn').addEventListener('click', async () => {
+  if (window._firebase) {
+    const { signOut } = window._firebase;
+    await signOut(firebaseAuth);
+    currentUser = null;
+  }
+  updateAuthUI();
+});
+
+el('dash-sync-btn').addEventListener('click', async () => {
+  const btn = el('dash-sync-btn');
+  btn.textContent = '⏳';
+  await saveToCloud();
+  btn.textContent = '✅';
+  setTimeout(() => btn.textContent = '☁️', 1800);
+});
+
+function afterAuth() {
+  hideAuthScreen();
+  launchApp();
+}
+
+function launchApp() {
+  if (state.weekly_allowance) WEEKLY_ALLOWANCE = state.weekly_allowance;
+  if (!state.onboarded) {
+    el('onboarding').classList.remove('hidden');
+    renderOnboarding();
+    updateAllowanceDisplay();
+  } else {
+    el('app').classList.remove('hidden');
+    updateAllowanceDisplay();
+    updateWeekStatusBadge();
+    renderAll();
+  }
 }
 
 // ── Onboarding ───────────────────────────────────────────────────────────────
@@ -110,9 +291,7 @@ function renderOnboarding() {
   el('ob-next').textContent        = obStep < OB_STEPS.length - 1 ? 'Continue →' : 'Start Managing My Finances 🚀';
   el('ob-next').style.background   = obStep < OB_STEPS.length - 1 ? 'var(--purple)' : 'var(--green)';
   const dots = el('ob-dots').querySelectorAll('.dot');
-  dots.forEach((d, i) => {
-    d.classList.toggle('active', i === obStep);
-  });
+  dots.forEach((d, i) => d.classList.toggle('active', i === obStep));
 }
 
 el('ob-next').addEventListener('click', () => {
@@ -128,6 +307,7 @@ el('ob-next').addEventListener('click', () => {
     saveState();
     el('onboarding').classList.add('hidden');
     el('app').classList.remove('hidden');
+    updateWeekStatusBadge();
     renderAll();
   }
 });
@@ -148,12 +328,13 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
 });
 
 function renderTab(tab) {
-  if (tab === 'dashboard') renderDashboard();
-  else if (tab === 'expenses') renderExpenses();
-  else if (tab === 'savings') renderSavings();
-  else if (tab === 'grocery') renderGrocery();
+  if      (tab === 'dashboard') renderDashboard();
+  else if (tab === 'expenses')  renderExpenses();
+  else if (tab === 'savings')   renderSavings();
+  else if (tab === 'grocery')   renderGrocery();
   else if (tab === 'apartment') renderApartment();
-  else if (tab === 'budget') renderBudget();
+  else if (tab === 'budget')    renderBudget();
+  else if (tab === 'history')   renderHistory();
 }
 
 function renderAll() {
@@ -163,7 +344,184 @@ function renderAll() {
   renderGrocery();
   renderApartment();
   renderBudget();
+  renderHistory();
 }
+
+// ── Week Controls ─────────────────────────────────────────────────────────────
+function updateWeekStatusBadge() {
+  const badge = el('week-status-badge');
+  if (state.week_started) {
+    const d = new Date(state.week_started);
+    badge.textContent = '🟢 Started ' + d.toLocaleDateString('en-PH', { month: 'short', day: 'numeric' });
+    badge.className = 'week-status week-active';
+  } else {
+    badge.textContent = '⬜ Not started';
+    badge.className = 'week-status';
+  }
+}
+
+el('week-start-btn').addEventListener('click', () => {
+  if (state.week_started) {
+    if (!confirm('Week already started. Restart it? (This clears current week expenses.)')) return;
+  }
+  state.week_started = new Date().toISOString();
+  // Clear this week's expenses for a fresh start
+  state.expenses = state.expenses.filter(e => e.week !== weekKey());
+  saveState();
+  updateWeekStatusBadge();
+  renderDashboard();
+  renderExpenses();
+});
+
+el('week-end-btn').addEventListener('click', () => {
+  if (!state.week_started) {
+    alert('Start the week first before ending it.');
+    return;
+  }
+  if (!confirm('End this week and save a snapshot to History?')) return;
+
+  const thisWeekExp  = state.expenses.filter(e => e.week === weekKey());
+  const totalSpent   = thisWeekExp.reduce((a, e) => a + e.amount, 0);
+  const spent        = {};
+  thisWeekExp.forEach(e => { spent[e.cat] = (spent[e.cat] || 0) + e.amount; });
+  const savingsThisWeek = thisWeekExp
+    .filter(e => e.cat === 'savings')
+    .reduce((a, e) => a + e.amount, 0);
+
+  const snapshot = {
+    id:          Date.now(),
+    week_key:    weekKey(),
+    started_at:  state.week_started,
+    ended_at:    new Date().toISOString(),
+    allowance:   WEEKLY_ALLOWANCE,
+    total_spent: totalSpent,
+    remaining:   WEEKLY_ALLOWANCE - totalSpent,
+    savings:     savingsThisWeek,
+    spent_by_cat: { ...spent },
+    expenses:    [...thisWeekExp],
+    budget:      { ...state.budget },
+    score:       computeScore(totalSpent, state.savings_streak),
+  };
+
+  if (!state.week_history) state.week_history = [];
+  state.week_history.unshift(snapshot); // newest first
+  state.week_started = null;
+
+  // Reset this week
+  state.expenses = state.expenses.filter(e => e.week !== weekKey());
+
+  saveState();
+  updateWeekStatusBadge();
+  renderDashboard();
+  renderExpenses();
+  renderHistory();
+  alert('✅ Week saved to History!');
+});
+
+function computeScore(totalSpent, streak) {
+  const remaining = WEEKLY_ALLOWANCE - totalSpent;
+  const totalBudget = Object.values(state.budget).reduce((a, b) => a + b, 0);
+  return Math.min(100, Math.round(
+    (remaining / WEEKLY_ALLOWANCE) * 40 +
+    (streak > 0 ? Math.min(30, streak * 5) : 0) +
+    (totalSpent < totalBudget ? 30 : 0)
+  ));
+}
+
+// ── History Tab ───────────────────────────────────────────────────────────────
+function renderHistory() {
+  const listEl = el('history-list');
+  const history = state.week_history || [];
+
+  if (!history.length) {
+    listEl.innerHTML = `<div class="empty-state"><div class="empty-icon">📅</div><p>No weeks recorded yet. Use "⏹ End Week" on the Dashboard to save a snapshot.</p></div>`;
+    return;
+  }
+
+  listEl.innerHTML = history.map((wk, idx) => {
+    const scoreLabel = wk.score >= 70 ? 'Excellent' : wk.score >= 40 ? 'Fair' : 'Needs Work';
+    const scoreColor = wk.score >= 70 ? 'var(--green)' : wk.score >= 40 ? 'var(--amber)' : 'var(--red)';
+    const spentPct   = pct(wk.total_spent, wk.allowance);
+    const barCls     = spentPct > 80 ? 'warn' : 'purple';
+
+    const catBreakdown = Object.entries(wk.spent_by_cat || {})
+      .filter(([, v]) => v > 0)
+      .sort((a, b) => b[1] - a[1])
+      .map(([key, val]) => {
+        const meta = CAT_META[key] || { icon: '📌', label: key, barClass: 'purple' };
+        const budg = wk.budget?.[key] || 0;
+        const p    = pct(val, budg || wk.allowance);
+        return `
+          <div class="hist-cat-row">
+            <span class="hist-cat-name">${meta.icon} ${meta.label}</span>
+            <span class="hist-cat-amt">${fmt(val)}${budg ? ' / ' + fmt(budg) : ''}</span>
+          </div>
+          <div class="progress-track thin mb-6"><div class="progress-bar ${p > 80 ? 'warn' : meta.barClass}" style="width:${p}%"></div></div>`;
+      }).join('');
+
+    const topExpenses = [...(wk.expenses || [])]
+      .sort((a, b) => b.amount - a.amount)
+      .slice(0, 3)
+      .map(e => {
+        const meta = CAT_META[e.cat] || CAT_META.other;
+        return `<div class="hist-expense-pill" style="background:${meta.color}18;color:${meta.color}">${meta.icon} ${fmt(e.amount)}${e.note ? ' · ' + e.note : ''}</div>`;
+      }).join('');
+
+    return `
+      <div class="hist-card" id="hist-card-${wk.id}">
+        <div class="hist-card-header">
+          <div>
+            <div class="hist-week-label">${fmtWeekLabel(wk.started_at)} → ${fmtWeekLabel(wk.ended_at)}</div>
+            <div class="hist-week-key">${wk.week_key}</div>
+          </div>
+          <div class="hist-score" style="color:${scoreColor}">
+            <span class="hist-score-num">${wk.score}</span>
+            <span class="hist-score-lbl">${scoreLabel}</span>
+          </div>
+        </div>
+
+        <div class="hist-stats-row">
+          <div class="hist-stat">
+            <p class="hist-stat-label">Allowance</p>
+            <p class="hist-stat-val">${fmt(wk.allowance)}</p>
+          </div>
+          <div class="hist-stat">
+            <p class="hist-stat-label">Spent</p>
+            <p class="hist-stat-val" style="color:var(--amber)">${fmt(wk.total_spent)}</p>
+          </div>
+          <div class="hist-stat">
+            <p class="hist-stat-label">Saved</p>
+            <p class="hist-stat-val" style="color:var(--green)">${fmt(wk.remaining)}</p>
+          </div>
+        </div>
+
+        <div class="mb-10">
+          <div class="row-between mb-4">
+            <span class="label-sm">Budget used</span>
+            <span class="label-sm bold">${spentPct}%</span>
+          </div>
+          <div class="progress-track"><div class="progress-bar ${barCls}" style="width:${spentPct}%"></div></div>
+        </div>
+
+        <details class="hist-details">
+          <summary class="hist-details-toggle">Category breakdown ›</summary>
+          <div class="hist-cats mt-8">${catBreakdown || '<p class="label-sm">No category data.</p>'}</div>
+        </details>
+
+        ${topExpenses ? `<div class="hist-top-expenses mt-8"><p class="label-sm mb-6">Top expenses</p><div class="hist-pills">${topExpenses}</div></div>` : ''}
+
+        <button class="btn-hist-delete" onclick="deleteHistoryEntry(${wk.id})">🗑 Delete</button>
+      </div>`;
+  }).join('');
+}
+
+function deleteHistoryEntry(id) {
+  if (!confirm('Delete this week from history?')) return;
+  state.week_history = state.week_history.filter(w => w.id !== id);
+  saveState();
+  renderHistory();
+}
+window.deleteHistoryEntry = deleteHistoryEntry;
 
 // ── Dashboard ────────────────────────────────────────────────────────────────
 function renderDashboard() {
@@ -174,11 +532,7 @@ function renderDashboard() {
   const remaining = WEEKLY_ALLOWANCE - totalSpent;
   const safeToSpend = remaining - (state.budget.savings || 0);
   const totalBudget = Object.values(state.budget).reduce((a, b) => a + b, 0);
-  const score = Math.min(100, Math.round(
-    (remaining / WEEKLY_ALLOWANCE) * 40 +
-    (state.savings_streak > 0 ? Math.min(30, state.savings_streak * 5) : 0) +
-    (totalSpent < totalBudget ? 30 : 0)
-  ));
+  const score = computeScore(totalSpent, state.savings_streak);
   const scoreLabel = score >= 70 ? 'Excellent' : score >= 40 ? 'Fair' : 'Needs Work';
   const scoreColor = score >= 70 ? 'var(--green)' : score >= 40 ? 'var(--amber)' : 'var(--red)';
 
@@ -197,11 +551,10 @@ function renderDashboard() {
 
   const overflowEl = el('d-overflow');
   if (totalBudget > WEEKLY_ALLOWANCE) {
-    overflowEl.textContent = `⚠️ Budget allocations exceed ₱2,500 by ${fmt(totalBudget - WEEKLY_ALLOWANCE)}`;
+    overflowEl.textContent = `⚠️ Budget allocations exceed ${fmt(WEEKLY_ALLOWANCE)} by ${fmt(totalBudget - WEEKLY_ALLOWANCE)}`;
     overflowEl.classList.remove('hidden');
   } else overflowEl.classList.add('hidden');
 
-  // Categories
   const catContainer = el('d-categories');
   catContainer.innerHTML = Object.entries(CAT_META).map(([key, meta]) => {
     const spentAmt  = spent[key] || 0;
@@ -218,12 +571,10 @@ function renderDashboard() {
       </div>`;
   }).join('');
 
-  // Savings
   el('d-savings-total').textContent = fmt(state.savings_total);
   el('d-savings-proj').textContent  = `≈ ${fmt(state.savings_total * 4)}/mo · ${fmt(state.savings_total * 52)}/yr`;
   el('d-streak').textContent = state.savings_streak;
 
-  // Insights
   const insights = buildInsights(state, spent, totalSpent);
   el('d-insights').innerHTML = insights.map(i =>
     `<div class="insight-card ${i.type}"><span class="insight-icon">${i.icon}</span><span>${i.msg}</span></div>`
@@ -246,10 +597,10 @@ function buildInsights(state, spent, totalSpent) {
 
 // ── Expenses ─────────────────────────────────────────────────────────────────
 function renderExpenses() {
-  const todayStr   = today();
+  const todayStr    = today();
   const thisWeekExp = state.expenses.filter(e => e.week === weekKey());
-  const todayAmt   = thisWeekExp.filter(e => new Date(e.date).toDateString() === todayStr).reduce((a,e) => a+e.amount, 0);
-  const weekAmt    = thisWeekExp.reduce((a,e) => a+e.amount, 0);
+  const todayAmt    = thisWeekExp.filter(e => new Date(e.date).toDateString() === todayStr).reduce((a,e) => a+e.amount, 0);
+  const weekAmt     = thisWeekExp.reduce((a,e) => a+e.amount, 0);
 
   el('e-today').textContent = fmt(todayAmt);
   el('e-week').textContent  = fmt(weekAmt);
@@ -260,7 +611,7 @@ function renderExpenses() {
     return;
   }
   listEl.innerHTML = [...thisWeekExp].reverse().map(e => {
-    const meta = CAT_META[e.cat] || CAT_META.food;
+    const meta = CAT_META[e.cat] || CAT_META.other;
     const timeStr = new Date(e.date).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
     return `
       <div class="expense-item">
@@ -317,7 +668,6 @@ function renderSavings() {
   el('s-yearly').textContent  = fmt(state.savings_total * 52);
   el('s-streak').textContent  = '🔥 ' + state.savings_streak + 'w';
 
-  // Milestone
   const next = MILESTONES.find(m => m > state.savings_total) || MILESTONES[MILESTONES.length - 1];
   const prev = MILESTONES.filter(m => m <= state.savings_total).pop() || 0;
   el('s-milestone-label').textContent = 'Next Milestone: ' + fmt(next);
@@ -329,7 +679,6 @@ function renderSavings() {
     return `<div class="milestone-pill ${done ? 'done' : ''}">${done ? '✓ ' : ''}${fmt(m)}</div>`;
   }).join('');
 
-  // Log
   const logEl = el('s-log');
   if (!state.savings_log.length) {
     logEl.innerHTML = `<div class="empty-state"><div class="empty-icon">💰</div><p>Start saving to see your history here!</p></div>`;
@@ -385,9 +734,9 @@ window.deleteSavingsEntry = deleteSavingsEntry;
 
 // ── Grocery ───────────────────────────────────────────────────────────────────
 function renderGrocery() {
-  const customItems = state.custom_groceries || [];
-  const allItems    = [...GROCERY_LIST, ...customItems];
-  const checked     = state.grocery_checked;
+  const customItems  = state.custom_groceries || [];
+  const allItems     = [...GROCERY_LIST, ...customItems];
+  const checked      = state.grocery_checked;
   const checkedItems = allItems.filter(g => checked.includes(g.name));
   const totalCost    = checkedItems.reduce((a, g) => a + g.cost, 0);
   const totalProtein = checkedItems.reduce((a, g) => a + g.protein, 0);
@@ -401,11 +750,9 @@ function renderGrocery() {
     budgetCard.classList.remove('hidden');
     el('g-budget-pct').textContent = pct(totalCost, state.budget.food) + '%';
     el('g-budget-bar').style.width = pct(totalCost, state.budget.food) + '%';
-    const cls = pct(totalCost, state.budget.food) > 80 ? 'warn' : 'green';
-    el('g-budget-bar').className = 'progress-bar ' + cls;
+    el('g-budget-bar').className   = 'progress-bar ' + (pct(totalCost, state.budget.food) > 80 ? 'warn' : 'green');
   } else budgetCard.classList.add('hidden');
 
-  // Group built-in items
   const groups = {};
   GROCERY_LIST.forEach(g => { if (!groups[g.category]) groups[g.category] = []; groups[g.category].push(g); });
 
@@ -414,12 +761,10 @@ function renderGrocery() {
     ${items.map(item => renderGroceryItem(item, false)).join('')}
   `).join('');
 
-  // Custom items
   if (customItems.length) {
     html += `<p class="grocery-cat-label">My Custom Items</p>`;
     html += customItems.map(item => renderGroceryItem(item, true)).join('');
   }
-
   el('g-list').innerHTML = html;
 }
 
@@ -454,6 +799,15 @@ el('g-add-btn').addEventListener('click', () => {
   renderGrocery();
 });
 
+function toggleGrocery(name) {
+  const idx = state.grocery_checked.indexOf(name);
+  if (idx >= 0) state.grocery_checked.splice(idx, 1);
+  else state.grocery_checked.push(name);
+  saveState();
+  renderGrocery();
+}
+window.toggleGrocery = toggleGrocery;
+
 function deleteCustomGrocery(name) {
   state.custom_groceries = (state.custom_groceries || []).filter(g => g.name !== name);
   state.grocery_checked  = state.grocery_checked.filter(n => n !== name);
@@ -466,9 +820,8 @@ window.deleteCustomGrocery = deleteCustomGrocery;
 function renderApartment() {
   const todayStr = today();
 
-  // Medicine
   el('med-list').innerHTML = Object.entries(state.medicine).map(([med, data]) => {
-    const isLow   = data.qty <= data.low;
+    const isLow    = data.qty <= data.low;
     const isCustom = data.custom;
     const safeMed  = med.replace(/'/g, "\\'");
     return `
@@ -486,19 +839,14 @@ function renderApartment() {
       </div>`;
   }).join('');
 
-  // Tasks — combine default + custom
   const customTasks = state.custom_tasks || [];
-  const allTasks    = [
-    ...APARTMENT_TASKS,
-    ...customTasks.map(t => ({ ...t, isCustom: true }))
-  ];
+  const allTasks    = [...APARTMENT_TASKS, ...customTasks.map(t => ({ ...t, isCustom: true }))];
 
   el('task-list').innerHTML = allTasks.map(task => {
     const doneKey = `${todayStr}_${task.id}`;
     const isDone  = !!state.tasks_done[doneKey];
     const delBtn  = task.isCustom
-      ? `<button class="btn-del" onclick="deleteCustomTask('${task.id}')" title="Remove task" style="margin-left:6px">×</button>`
-      : '';
+      ? `<button class="btn-del" onclick="deleteCustomTask('${task.id}')" title="Remove task" style="margin-left:6px">×</button>` : '';
     return `
       <div class="task-item ${isDone ? 'done' : ''}" onclick="toggleTask('${doneKey}')">
         <span class="task-icon">${task.icon || '📌'}</span>
@@ -515,59 +863,46 @@ function renderApartment() {
 }
 
 function changeMed(med, delta) {
-  const cur = state.medicine[med]?.qty || 0;
-  state.medicine[med].qty = Math.max(0, cur + delta);
-  saveState();
-  renderApartment();
-  renderDashboard();
+  state.medicine[med].qty = Math.max(0, (state.medicine[med]?.qty || 0) + delta);
+  saveState(); renderApartment(); renderDashboard();
 }
 window.changeMed = changeMed;
 
 function deleteMedicine(med) {
   if (!confirm(`Remove "${med}" from medicine cabinet?`)) return;
   delete state.medicine[med];
-  saveState();
-  renderApartment();
+  saveState(); renderApartment();
 }
 window.deleteMedicine = deleteMedicine;
 
 el('med-add-btn').addEventListener('click', addMedicine);
 el('med-new-name').addEventListener('keydown', e => { if (e.key === 'Enter') addMedicine(); });
-
 function addMedicine() {
   const name = el('med-new-name').value.trim();
   if (!name || state.medicine[name]) { el('med-new-name').focus(); return; }
   state.medicine[name] = { qty: 3, low: 1, custom: true };
-  saveState();
-  el('med-new-name').value = '';
-  renderApartment();
+  saveState(); el('med-new-name').value = ''; renderApartment();
 }
 
 function toggleTask(key) {
   state.tasks_done[key] = !state.tasks_done[key];
-  saveState();
-  renderApartment();
+  saveState(); renderApartment();
 }
 window.toggleTask = toggleTask;
 
 el('task-add-btn').addEventListener('click', addCustomTask);
 el('task-new-label').addEventListener('keydown', e => { if (e.key === 'Enter') addCustomTask(); });
-
 function addCustomTask() {
   const label = el('task-new-label').value.trim();
   if (!label) { el('task-new-label').focus(); return; }
-  const freq  = el('task-new-freq').value;
   if (!state.custom_tasks) state.custom_tasks = [];
-  state.custom_tasks.push({ id: 'custom_' + Date.now(), label, icon: '📌', freq, isCustom: true });
-  saveState();
-  el('task-new-label').value = '';
-  renderApartment();
+  state.custom_tasks.push({ id: 'custom_' + Date.now(), label, icon: '📌', freq: el('task-new-freq').value, isCustom: true });
+  saveState(); el('task-new-label').value = ''; renderApartment();
 }
 
 function deleteCustomTask(id) {
   state.custom_tasks = (state.custom_tasks || []).filter(t => t.id !== id);
-  saveState();
-  renderApartment();
+  saveState(); renderApartment();
 }
 window.deleteCustomTask = deleteCustomTask;
 
@@ -577,7 +912,6 @@ let localBudget = { ...DEFAULT_BUDGET };
 function renderBudget() {
   localBudget = { ...state.budget };
   updateBudgetTotals();
-
   el('b-sliders').innerHTML = Object.entries(CAT_META).map(([key, meta]) => `
     <div class="budget-slider-card">
       <div class="bsc-header">
@@ -585,12 +919,11 @@ function renderBudget() {
         <div class="bsc-input-wrap">
           <span class="bsc-peso">₱</span>
           <input type="number" class="input-budget" id="bgt-${key}"
-            value="${localBudget[key]}"
-            oninput="onBudgetInput('${key}', this.value)" />
+            value="${localBudget[key] || 0}" oninput="onBudgetInput('${key}', this.value)" />
         </div>
       </div>
       <input type="range" min="0" max="1500" step="10"
-        value="${localBudget[key]}" id="bgt-range-${key}"
+        value="${localBudget[key] || 0}" id="bgt-range-${key}"
         oninput="onBudgetRange('${key}', this.value)"
         style="accent-color:${meta.color}" />
     </div>`).join('');
@@ -598,16 +931,14 @@ function renderBudget() {
 
 function onBudgetInput(key, val) {
   localBudget[key] = Number(val) || 0;
-  const rangeEl = el('bgt-range-' + key);
-  if (rangeEl) rangeEl.value = localBudget[key];
+  const r = el('bgt-range-' + key); if (r) r.value = localBudget[key];
   updateBudgetTotals();
 }
 window.onBudgetInput = onBudgetInput;
 
 function onBudgetRange(key, val) {
   localBudget[key] = Number(val);
-  const inputEl = el('bgt-' + key);
-  if (inputEl) inputEl.value = localBudget[key];
+  const i = el('bgt-' + key); if (i) i.value = localBudget[key];
   updateBudgetTotals();
 }
 window.onBudgetRange = onBudgetRange;
@@ -615,8 +946,8 @@ window.onBudgetRange = onBudgetRange;
 function updateBudgetTotals() {
   const total    = Object.values(localBudget).reduce((a, b) => a + Number(b), 0);
   const overflow = total > WEEKLY_ALLOWANCE;
-  el('b-total-disp').textContent  = `${fmt(total)} / ${fmt(WEEKLY_ALLOWANCE)}`;
-  el('b-total-disp').style.color  = overflow ? 'var(--red)' : 'var(--green)';
+  el('b-total-disp').textContent = `${fmt(total)} / ${fmt(WEEKLY_ALLOWANCE)}`;
+  el('b-total-disp').style.color = overflow ? 'var(--red)' : 'var(--green)';
   el('b-overflow').classList.toggle('hidden', !overflow);
   el('b-ok').classList.toggle('hidden', overflow);
   if (!overflow) el('b-remaining-alloc').textContent = fmt(WEEKLY_ALLOWANCE - total);
@@ -626,25 +957,16 @@ el('b-save-btn').addEventListener('click', () => {
   state.budget = { ...localBudget };
   saveState();
   const btn = el('b-save-btn');
-  btn.textContent = '✓ Budget Saved!';
-  btn.classList.add('success');
+  btn.textContent = '✓ Budget Saved!'; btn.classList.add('success');
   setTimeout(() => { btn.textContent = 'Save Budget'; btn.classList.remove('success'); }, 1800);
   renderDashboard();
 });
 
 el('b-reset-btn').addEventListener('click', () => {
-  if (!confirm('Are you sure you want to reset ALL data? This cannot be undone.')) return;
+  if (!confirm('Reset ALL data? This cannot be undone.')) return;
   localStorage.removeItem(STORAGE_KEY);
   location.reload();
 });
-
-// ── Init ──────────────────────────────────────────────────────────────────────
-initState();
-
-// Sync dynamic allowance from saved state
-if (state.weekly_allowance) WEEKLY_ALLOWANCE = state.weekly_allowance;
-if (!state.custom_groceries) state.custom_groceries = [];
-if (!state.custom_tasks)     state.custom_tasks = [];
 
 // ── Allowance Editor ──────────────────────────────────────────────────────────
 function updateAllowanceDisplay() {
@@ -661,17 +983,12 @@ el('allowance-edit-btn').addEventListener('click', () => {
 function saveAllowance() {
   const v = parseFloat(el('allowance-input').value);
   if (v && v > 0) {
-    WEEKLY_ALLOWANCE = v;
-    state.weekly_allowance = v;
-    saveState();
-    updateAllowanceDisplay();
-    renderDashboard();
-    renderBudget();
+    WEEKLY_ALLOWANCE = v; state.weekly_allowance = v;
+    saveState(); updateAllowanceDisplay(); renderDashboard(); renderBudget();
   }
   el('allowance-display-wrap').classList.remove('hidden');
   el('allowance-input-wrap').classList.add('hidden');
 }
-
 el('allowance-save-btn').addEventListener('click', saveAllowance);
 el('allowance-cancel-btn').addEventListener('click', () => {
   el('allowance-display-wrap').classList.remove('hidden');
@@ -679,12 +996,23 @@ el('allowance-cancel-btn').addEventListener('click', () => {
 });
 el('allowance-input').addEventListener('keydown', e => { if (e.key === 'Enter') saveAllowance(); });
 
-if (!state.onboarded) {
-  el('onboarding').classList.remove('hidden');
-  renderOnboarding();
-  updateAllowanceDisplay();
-} else {
-  el('app').classList.remove('hidden');
-  updateAllowanceDisplay();
-  renderAll();
-}
+// ── Boot ──────────────────────────────────────────────────────────────────────
+initState();
+
+(async () => {
+  const user = await initFirebase();
+  if (user) {
+    currentUser = user;
+    const cloudState = await loadFromCloud();
+    if (cloudState) {
+      state = cloudState;
+      if (!state.custom_groceries) state.custom_groceries = [];
+      if (!state.custom_tasks)     state.custom_tasks     = [];
+      if (!state.week_history)     state.week_history     = [];
+      if (state.week_started === undefined) state.week_started = null;
+      saveState();
+    }
+  }
+  updateAuthUI();
+  showAuthScreen();
+})();
