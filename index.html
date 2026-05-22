@@ -42,7 +42,19 @@
     <div class="tab-header">
       <p class="tab-date" id="dash-date">Week of May 22</p>
       <h2 class="tab-title">Dashboard</h2>
-      <p class="tab-sub">Allowance: <strong class="accent">₱2,500</strong></p>
+      <div class="allowance-row">
+        <span class="tab-sub">Weekly Allowance:</span>
+        <div class="allowance-edit" id="allowance-display-wrap">
+          <strong class="accent" id="allowance-display">₱2,500</strong>
+          <button class="btn-edit-allowance" id="allowance-edit-btn" title="Edit allowance">✏️</button>
+        </div>
+        <div class="allowance-input-wrap hidden" id="allowance-input-wrap">
+          <span class="bsc-peso">₱</span>
+          <input type="number" id="allowance-input" class="input-allowance" placeholder="2500" />
+          <button class="btn-allowance-save" id="allowance-save-btn">✓</button>
+          <button class="btn-allowance-cancel" id="allowance-cancel-btn">✕</button>
+        </div>
+      </div>
     </div>
 
     <div class="grid-2 mb-16">
@@ -126,6 +138,7 @@
         <option value="medicine">💊 Medicine</option>
         <option value="savings">🏦 Savings</option>
         <option value="fun">🎯 Buffer / Fun</option>
+        <option value="other">📌 Other</option>
       </select>
       <input type="text" id="e-note" class="input-md mt-8" placeholder="Note (optional)" />
       <button class="btn-primary mt-12" id="e-add-btn">Add Expense</button>
@@ -227,6 +240,26 @@
       <div class="progress-track"><div class="progress-bar green" id="g-budget-bar" style="width:0%"></div></div>
     </div>
 
+    <div class="card mb-16">
+      <p class="section-label">Add Custom Item</p>
+      <input type="text" id="g-custom-name" class="input-md mb-8" placeholder="Item name (e.g. Sardines)" />
+      <div class="grid-3 mb-8">
+        <div>
+          <p class="input-label">Price (₱)</p>
+          <input type="number" id="g-custom-cost" class="input-md" placeholder="0" />
+        </div>
+        <div>
+          <p class="input-label">Protein (g)</p>
+          <input type="number" id="g-custom-protein" class="input-md" placeholder="0" />
+        </div>
+        <div>
+          <p class="input-label">Qty</p>
+          <input type="number" id="g-custom-qty" class="input-md" placeholder="1" />
+        </div>
+      </div>
+      <button class="btn-primary" id="g-add-btn">Add to List</button>
+    </div>
+
     <div id="g-list"></div>
   </section>
 
@@ -240,9 +273,27 @@
     <div class="card mb-20">
       <p class="section-label">💊 Medicine Cabinet</p>
       <div id="med-list"></div>
+      <div class="add-med-row mt-12">
+        <input type="text" id="med-new-name" class="input-md flex-1" placeholder="Add medicine (e.g. Ibuprofen)" />
+        <button class="btn-blue" id="med-add-btn">Add</button>
+      </div>
     </div>
 
-    <p class="section-label">📋 Today's Checklist</p>
+    <div class="row-between mb-12">
+      <p class="section-label" style="margin-bottom:0">📋 Today's Checklist</p>
+    </div>
+    <div class="card mb-12">
+      <div class="add-task-row">
+        <input type="text" id="task-new-label" class="input-md flex-1" placeholder="Add a task (e.g. Water plants)" />
+        <select id="task-new-freq" class="input-md" style="width:100px;flex-shrink:0">
+          <option value="Daily">Daily</option>
+          <option value="Every 2 days">Every 2d</option>
+          <option value="Weekly">Weekly</option>
+          <option value="Monthly">Monthly</option>
+        </select>
+        <button class="btn-blue" id="task-add-btn">Add</button>
+      </div>
+    </div>
     <div id="task-list"></div>
   </section>
 
