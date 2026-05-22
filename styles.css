@@ -532,6 +532,55 @@ input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.2); }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border-med); border-radius: 99px; }
 
+/* ── Allowance Editor ──────────────────────────────────────────────────────── */
+.allowance-row {
+  display: flex; align-items: center; justify-content: center;
+  gap: 8px; flex-wrap: wrap; margin-top: 2px;
+}
+.allowance-edit { display: flex; align-items: center; gap: 6px; }
+.btn-edit-allowance {
+  background: none; border: none; cursor: pointer;
+  font-size: 14px; padding: 2px 4px; border-radius: 6px;
+  transition: background 0.15s;
+}
+.btn-edit-allowance:hover { background: var(--purple-lt); }
+.allowance-input-wrap { display: flex; align-items: center; gap: 6px; }
+.input-allowance {
+  width: 90px; padding: 6px 10px; text-align: right;
+  background: var(--bg-input); border: 1.5px solid var(--purple);
+  border-radius: var(--radius-sm); color: var(--text-primary);
+  font-size: 15px; font-weight: 700; font-family: 'DM Mono', monospace;
+  outline: none;
+}
+.btn-allowance-save, .btn-allowance-cancel {
+  width: 28px; height: 28px; border-radius: var(--radius-sm);
+  border: none; cursor: pointer; font-size: 13px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+}
+.btn-allowance-save   { background: var(--green-lt); color: var(--green); }
+.btn-allowance-cancel { background: var(--red-lt);   color: var(--red); }
+
+/* ── Grid-3 ────────────────────────────────────────────────────────────────── */
+.grid-3 {
+  display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;
+}
+
+/* ── Input label ───────────────────────────────────────────────────────────── */
+.input-label {
+  font-size: 10px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 4px;
+}
+
+/* ── Add rows (medicine / task) ────────────────────────────────────────────── */
+.add-med-row, .add-task-row {
+  display: flex; gap: 8px; align-items: center;
+}
+.add-task-row { flex-wrap: wrap; }
+.add-task-row .input-md:first-child { min-width: 0; }
+
+/* ── Savings log right ─────────────────────────────────────────────────────── */
+.savings-log-right { display: flex; align-items: center; gap: 8px; }
+
 /* ── Responsive ────────────────────────────────────────────────────────────── */
 @media (max-width: 360px) {
   .savings-hero-big { font-size: 36px; }
