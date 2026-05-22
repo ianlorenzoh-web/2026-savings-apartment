@@ -2,14 +2,16 @@
 // 🔧 REPLACE THIS with your own Firebase project config from:
 //    https://console.firebase.google.com → Project Settings → Your apps → Web
 const FIREBASE_CONFIG = {
-  apiKey:            "YOUR_API_KEY",
-  authDomain:        "YOUR_PROJECT_ID.firebaseapp.com",
-  projectId:         "YOUR_PROJECT_ID",
-  storageBucket:     "YOUR_PROJECT_ID.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId:             "YOUR_APP_ID"
+  // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
+  apiKey: "AIzaSyDHsIDQV1hwlfys_Zco6BXzNY7Xy6omHzs",
+  authDomain: "appjs-383bf.firebaseapp.com",
+  projectId: "appjs-383bf",
+  storageBucket: "appjs-383bf.firebasestorage.app",
+  messagingSenderId: "451999085560",
+  appId: "1:451999085560:web:ff16e59ba3daa936c71c0d",
+  measurementId: "G-PDNQ5PGPE5"
 };
-const FIREBASE_CONFIGURED = FIREBASE_CONFIG.apiKey !== "YOUR_API_KEY";
 
 // ── Firebase imports (loaded dynamically so app works without config) ─────────
 let firebaseApp, firebaseAuth, firebaseDb;
