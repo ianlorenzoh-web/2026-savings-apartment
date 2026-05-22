@@ -9,7 +9,7 @@ const firebaseConfig = {
   messagingSenderId: "785770464539",
   appId: "1:785770464539:web:416204d269ea3346cbbfbe"
 };
-const FIREBASE_CONFIGURED = FIREBASE_CONFIG.apiKey!== "AIzaSyDZbG-IGZGu0OP2x1g4TJMeJ6bBhJJZMoM";
+const FIREBASE_CONFIGURED = FIREBASE_CONFIG.apiKey !== "AIzaSyDZbG-IGZGu0OP2x1g4TJMeJ6bBhJJZMoM";
 
 // ── Firebase imports (loaded dynamically so app works without config) ─────────
 let firebaseApp, firebaseAuth, firebaseDb;
