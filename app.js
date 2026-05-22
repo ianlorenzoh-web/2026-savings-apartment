@@ -1,5 +1,5 @@
 // ── Constants ────────────────────────────────────────────────────────────────
-const WEEKLY_ALLOWANCE = 2500;
+let WEEKLY_ALLOWANCE = 2500;
 const STORAGE_KEY = 'sololife_v3';
 
 const DEFAULT_BUDGET = {
@@ -15,6 +15,7 @@ const CAT_META = {
   medicine:  { label: 'Medicine',         icon: '💊', color: '#dc2626', barClass: 'warn'  },
   savings:   { label: 'Savings',          icon: '🏦', color: '#0891b2', barClass: 'teal'  },
   fun:       { label: 'Buffer / Fun',     icon: '🎯', color: '#d97706', barClass: 'amber' },
+  other:     { label: 'Other',            icon: '📌', color: '#6b7280', barClass: 'purple'},
 };
 
 const MEDICINE_ITEMS = [
@@ -89,9 +90,12 @@ function initState() {
     savings_log: [],
     medicine: MEDICINE_ITEMS.reduce((a, m) => ({ ...a, [m]: { qty: 3, low: 1 } }), {}),
     grocery_checked: [],
+    custom_groceries: [],
+    custom_tasks: [],
     tasks_done: {},
     onboarded: false,
     week: weekKey(),
+    weekly_allowance: 2500,
   };
 }
 
@@ -337,7 +341,10 @@ function renderSavings() {
         <div class="savings-log-title">💰 Savings Added</div>
         <div class="savings-log-date">${new Date(s.date).toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' })}</div>
       </div>
-      <div class="savings-log-amt">+${fmt(s.amount)}</div>
+      <div class="savings-log-right">
+        <span class="savings-log-amt">+${fmt(s.amount)}</span>
+        <button class="btn-del" onclick="deleteSavingsEntry(${s.id || 0})" title="Cancel this entry">×</button>
+      </div>
     </div>`).join('');
 }
 
@@ -356,17 +363,32 @@ function addSavings() {
   if (!amt || amt <= 0) return;
   state.savings_total  += amt;
   state.savings_streak += 1;
-  state.savings_log.push({ amount: amt, date: new Date().toISOString() });
+  state.savings_log.push({ id: Date.now(), amount: amt, date: new Date().toISOString() });
   saveState();
   el('s-amount').value = '';
   renderSavings();
   renderDashboard();
 }
 
+function deleteSavingsEntry(id) {
+  const entry = state.savings_log.find(s => s.id === id);
+  if (!entry) return;
+  if (!confirm(`Cancel savings entry of ${fmt(entry.amount)}?`)) return;
+  state.savings_total  = Math.max(0, state.savings_total - entry.amount);
+  state.savings_streak = Math.max(0, state.savings_streak - 1);
+  state.savings_log    = state.savings_log.filter(s => s.id !== id);
+  saveState();
+  renderSavings();
+  renderDashboard();
+}
+window.deleteSavingsEntry = deleteSavingsEntry;
+
 // ── Grocery ───────────────────────────────────────────────────────────────────
 function renderGrocery() {
-  const checked = state.grocery_checked;
-  const checkedItems = GROCERY_LIST.filter(g => checked.includes(g.name));
+  const customItems = state.custom_groceries || [];
+  const allItems    = [...GROCERY_LIST, ...customItems];
+  const checked     = state.grocery_checked;
+  const checkedItems = allItems.filter(g => checked.includes(g.name));
   const totalCost    = checkedItems.reduce((a, g) => a + g.cost, 0);
   const totalProtein = checkedItems.reduce((a, g) => a + g.protein, 0);
 
@@ -383,35 +405,62 @@ function renderGrocery() {
     el('g-budget-bar').className = 'progress-bar ' + cls;
   } else budgetCard.classList.add('hidden');
 
-  // Group items
+  // Group built-in items
   const groups = {};
   GROCERY_LIST.forEach(g => { if (!groups[g.category]) groups[g.category] = []; groups[g.category].push(g); });
 
-  el('g-list').innerHTML = Object.entries(groups).map(([cat, items]) => `
+  let html = Object.entries(groups).map(([cat, items]) => `
     <p class="grocery-cat-label">${cat}</p>
-    ${items.map(item => {
-      const isChecked = checked.includes(item.name);
-      return `
-        <div class="grocery-item ${isChecked ? 'checked' : ''}" onclick="toggleGrocery('${item.name}')">
-          <div class="grocery-checkbox">${isChecked ? '✓' : ''}</div>
-          <div style="flex:1;margin-left:10px">
-            <div class="grocery-name">${item.name}</div>
-            <div class="grocery-protein">${item.protein}g protein</div>
-          </div>
-          <div class="grocery-cost">${fmt(item.cost)}</div>
-        </div>`;
-    }).join('')}
+    ${items.map(item => renderGroceryItem(item, false)).join('')}
   `).join('');
+
+  // Custom items
+  if (customItems.length) {
+    html += `<p class="grocery-cat-label">My Custom Items</p>`;
+    html += customItems.map(item => renderGroceryItem(item, true)).join('');
+  }
+
+  el('g-list').innerHTML = html;
 }
 
-function toggleGrocery(name) {
-  const idx = state.grocery_checked.indexOf(name);
-  if (idx >= 0) state.grocery_checked.splice(idx, 1);
-  else state.grocery_checked.push(name);
+function renderGroceryItem(item, isCustom) {
+  const isChecked = state.grocery_checked.includes(item.name);
+  const safeName  = item.name.replace(/'/g, "\\'");
+  const deleteBtn = isCustom ? `<button class="btn-del" onclick="deleteCustomGrocery('${safeName}')" title="Remove">×</button>` : '';
+  return `
+    <div class="grocery-item ${isChecked ? 'checked' : ''}" onclick="toggleGrocery('${safeName}')">
+      <div class="grocery-checkbox">${isChecked ? '✓' : ''}</div>
+      <div style="flex:1;margin-left:10px">
+        <div class="grocery-name">${item.name}</div>
+        <div class="grocery-protein">${item.protein}g protein${item.qty && item.qty > 1 ? ' · qty ' + item.qty : ''}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div class="grocery-cost">${fmt(item.cost)}</div>
+        ${deleteBtn}
+      </div>
+    </div>`;
+}
+
+el('g-add-btn').addEventListener('click', () => {
+  const name    = el('g-custom-name').value.trim();
+  const cost    = parseFloat(el('g-custom-cost').value) || 0;
+  const protein = parseFloat(el('g-custom-protein').value) || 0;
+  const qty     = parseInt(el('g-custom-qty').value) || 1;
+  if (!name) { el('g-custom-name').focus(); return; }
+  if (!state.custom_groceries) state.custom_groceries = [];
+  state.custom_groceries.push({ name, cost, protein, qty, category: 'Custom' });
+  saveState();
+  el('g-custom-name').value = el('g-custom-cost').value = el('g-custom-protein').value = el('g-custom-qty').value = '';
+  renderGrocery();
+});
+
+function deleteCustomGrocery(name) {
+  state.custom_groceries = (state.custom_groceries || []).filter(g => g.name !== name);
+  state.grocery_checked  = state.grocery_checked.filter(n => n !== name);
   saveState();
   renderGrocery();
 }
-window.toggleGrocery = toggleGrocery;
+window.deleteCustomGrocery = deleteCustomGrocery;
 
 // ── Apartment ─────────────────────────────────────────────────────────────────
 function renderApartment() {
@@ -419,7 +468,9 @@ function renderApartment() {
 
   // Medicine
   el('med-list').innerHTML = Object.entries(state.medicine).map(([med, data]) => {
-    const isLow = data.qty <= data.low;
+    const isLow   = data.qty <= data.low;
+    const isCustom = data.custom;
+    const safeMed  = med.replace(/'/g, "\\'");
     return `
       <div class="med-item">
         <div>
@@ -427,25 +478,38 @@ function renderApartment() {
           ${isLow ? `<div class="med-warn">Low stock — restock soon!</div>` : ''}
         </div>
         <div class="med-controls">
-          <button class="btn-med" onclick="changeMed('${med}', -1)">−</button>
+          <button class="btn-med" onclick="changeMed('${safeMed}', -1)">−</button>
           <span class="med-qty ${isLow ? 'low' : ''}">${data.qty}</span>
-          <button class="btn-med plus" onclick="changeMed('${med}', 1)">+</button>
+          <button class="btn-med plus" onclick="changeMed('${safeMed}', 1)">+</button>
+          ${isCustom ? `<button class="btn-del" onclick="deleteMedicine('${safeMed}')" title="Remove">×</button>` : ''}
         </div>
       </div>`;
   }).join('');
 
-  // Tasks
-  el('task-list').innerHTML = APARTMENT_TASKS.map(task => {
+  // Tasks — combine default + custom
+  const customTasks = state.custom_tasks || [];
+  const allTasks    = [
+    ...APARTMENT_TASKS,
+    ...customTasks.map(t => ({ ...t, isCustom: true }))
+  ];
+
+  el('task-list').innerHTML = allTasks.map(task => {
     const doneKey = `${todayStr}_${task.id}`;
     const isDone  = !!state.tasks_done[doneKey];
+    const delBtn  = task.isCustom
+      ? `<button class="btn-del" onclick="deleteCustomTask('${task.id}')" title="Remove task" style="margin-left:6px">×</button>`
+      : '';
     return `
       <div class="task-item ${isDone ? 'done' : ''}" onclick="toggleTask('${doneKey}')">
-        <span class="task-icon">${task.icon}</span>
+        <span class="task-icon">${task.icon || '📌'}</span>
         <div class="task-info">
           <div class="task-name">${task.label}</div>
           <div class="task-freq">${task.freq}</div>
         </div>
-        <div class="task-check">${isDone ? '✓' : ''}</div>
+        <div style="display:flex;align-items:center">
+          <div class="task-check">${isDone ? '✓' : ''}</div>
+          ${delBtn}
+        </div>
       </div>`;
   }).join('');
 }
@@ -459,12 +523,53 @@ function changeMed(med, delta) {
 }
 window.changeMed = changeMed;
 
+function deleteMedicine(med) {
+  if (!confirm(`Remove "${med}" from medicine cabinet?`)) return;
+  delete state.medicine[med];
+  saveState();
+  renderApartment();
+}
+window.deleteMedicine = deleteMedicine;
+
+el('med-add-btn').addEventListener('click', addMedicine);
+el('med-new-name').addEventListener('keydown', e => { if (e.key === 'Enter') addMedicine(); });
+
+function addMedicine() {
+  const name = el('med-new-name').value.trim();
+  if (!name || state.medicine[name]) { el('med-new-name').focus(); return; }
+  state.medicine[name] = { qty: 3, low: 1, custom: true };
+  saveState();
+  el('med-new-name').value = '';
+  renderApartment();
+}
+
 function toggleTask(key) {
   state.tasks_done[key] = !state.tasks_done[key];
   saveState();
   renderApartment();
 }
 window.toggleTask = toggleTask;
+
+el('task-add-btn').addEventListener('click', addCustomTask);
+el('task-new-label').addEventListener('keydown', e => { if (e.key === 'Enter') addCustomTask(); });
+
+function addCustomTask() {
+  const label = el('task-new-label').value.trim();
+  if (!label) { el('task-new-label').focus(); return; }
+  const freq  = el('task-new-freq').value;
+  if (!state.custom_tasks) state.custom_tasks = [];
+  state.custom_tasks.push({ id: 'custom_' + Date.now(), label, icon: '📌', freq, isCustom: true });
+  saveState();
+  el('task-new-label').value = '';
+  renderApartment();
+}
+
+function deleteCustomTask(id) {
+  state.custom_tasks = (state.custom_tasks || []).filter(t => t.id !== id);
+  saveState();
+  renderApartment();
+}
+window.deleteCustomTask = deleteCustomTask;
 
 // ── Budget Settings ───────────────────────────────────────────────────────────
 let localBudget = { ...DEFAULT_BUDGET };
@@ -536,10 +641,50 @@ el('b-reset-btn').addEventListener('click', () => {
 // ── Init ──────────────────────────────────────────────────────────────────────
 initState();
 
+// Sync dynamic allowance from saved state
+if (state.weekly_allowance) WEEKLY_ALLOWANCE = state.weekly_allowance;
+if (!state.custom_groceries) state.custom_groceries = [];
+if (!state.custom_tasks)     state.custom_tasks = [];
+
+// ── Allowance Editor ──────────────────────────────────────────────────────────
+function updateAllowanceDisplay() {
+  el('allowance-display').textContent = fmt(WEEKLY_ALLOWANCE);
+}
+
+el('allowance-edit-btn').addEventListener('click', () => {
+  el('allowance-display-wrap').classList.add('hidden');
+  el('allowance-input-wrap').classList.remove('hidden');
+  el('allowance-input').value = WEEKLY_ALLOWANCE;
+  el('allowance-input').focus();
+});
+
+function saveAllowance() {
+  const v = parseFloat(el('allowance-input').value);
+  if (v && v > 0) {
+    WEEKLY_ALLOWANCE = v;
+    state.weekly_allowance = v;
+    saveState();
+    updateAllowanceDisplay();
+    renderDashboard();
+    renderBudget();
+  }
+  el('allowance-display-wrap').classList.remove('hidden');
+  el('allowance-input-wrap').classList.add('hidden');
+}
+
+el('allowance-save-btn').addEventListener('click', saveAllowance);
+el('allowance-cancel-btn').addEventListener('click', () => {
+  el('allowance-display-wrap').classList.remove('hidden');
+  el('allowance-input-wrap').classList.add('hidden');
+});
+el('allowance-input').addEventListener('keydown', e => { if (e.key === 'Enter') saveAllowance(); });
+
 if (!state.onboarded) {
   el('onboarding').classList.remove('hidden');
   renderOnboarding();
+  updateAllowanceDisplay();
 } else {
   el('app').classList.remove('hidden');
+  updateAllowanceDisplay();
   renderAll();
 }
